@@ -1,10 +1,10 @@
 import gradio as gr
 import math
 import threading
-from chatbot_engine import chat, get_index
+from raiden.chatbot_engine import chat, get_index
 from dotenv import load_dotenv
 from langchain_community.chat_message_histories import ChatMessageHistory
-from chatbot_utils import store_response_in_pinecone, search_cached_answer
+from raiden.chatbot_utils import store_response_in_pinecone, search_cached_answer
 import time
 
 # 環境変数のロード
@@ -12,21 +12,6 @@ load_dotenv()
 
 # indexをグローバルに初期化
 index = None
-
-# 欠損数チェッカーの関数
-def calculate_combinations_28(n):
-    if not (0 <= n <= 28):
-        return "0〜28本の間で入力してください。"
-    combinations = math.comb(28, n)
-    return f"上下顎あわせて {n} 本が欠損している場合、\n組み合わせ数は {combinations:,} 通りです。"
-
-# 欠損数チェッカーのインターフェース
-with gr.Blocks(title="欠損数チェッカー") as dental_app:
-    gr.Markdown("## 欠損数チェッカー（上下顎）")
-    gr.Markdown("上下顎あわせて28本のうち、何本欠損したかに応じた組み合わせ数を表示します。")
-    slider = gr.Slider(0, 28, step=1, value=10, label="欠損歯の本数（上下顎 合計）")
-    output = gr.Textbox(label="結果", lines=2)
-    slider.change(fn=calculate_combinations_28, inputs=slider, outputs=output)
 
 # チャットボットの応答関数
 def respond(message, chat_history):
@@ -89,11 +74,30 @@ def respond(message, chat_history):
 
     return "", chat_history
 
+
+
+# 欠損数チェッカーの関数
+def calculate_combinations_28(n):
+    if not (0 <= n <= 28):
+        return "0〜28本の間で入力してください。"
+    combinations = math.comb(28, n)
+    return f"上下顎あわせて {n} 本が欠損している場合、\n組み合わせ数は {combinations:,} 通りです。"
+
+# 欠損数チェッカーのインターフェース
+with gr.Blocks(title="欠損数チェッカー") as dental_app:
+    gr.Markdown("## 欠損数チェッカー（上下顎）")
+    gr.Markdown("上下顎あわせて28本のうち、何本欠損したかに応じた組み合わせ数を表示します。")
+    slider = gr.Slider(0, 28, step=1, value=10, label="欠損歯の本数（上下顎 合計）")
+    output = gr.Textbox(label="結果", lines=2)
+    slider.change(fn=calculate_combinations_28, inputs=slider, outputs=output)
+
+
+
 # 欠損数チェッカーを起動する関数
 def run_dental_app():
     print("欠損数チェッカーを起動中... (http://0.0.0.0:7861)")
     dental_app.launch(
-        server_name="0.0.0.0",  # EC2では外部からのアクセスを許可するため0.0.0.0を使用
+        server_name="127.0.0.1",  # EC2では外部からのアクセスを許可するため0.0.0.0を使用
         server_port=7861,  # チャットボットをメインにするためポートを7861に変更
         share=False,
         show_error=True
@@ -115,48 +119,21 @@ if __name__ == "__main__":
     thread.daemon = True  # メインプログラム終了時にスレッドも終了させる
     thread.start()
     
-    # メインアプリとしてチャットボットを起動
-    print("メインアプリ: 歯科チャットボットを起動中... (http://0.0.0.0:7860)")
-    
-    with gr.Blocks(
-        title="歯科AIチャットボット", 
-        css=".gradio-container {background-color:rgb(248, 230, 199)}"
-    ) as chatbot_app:    
-        gr.Markdown("# 歯科AIチャットボット - RAIDEN v1.320")
-        gr.Markdown("## 自家歯牙移植、歯牙再植、歯科全般について応答します")
-        
-        with gr.Row():
-            with gr.Column(scale=4):
-                chatbot = gr.Chatbot(height=450, autoscroll=True)
-                msg = gr.Textbox(
-                    placeholder="歯科に関する質問を入力してください", 
-                    label="質問入力欄",
-                    container=False
-                )
-                with gr.Row():
-                    submit_btn = gr.Button("送信", variant="primary")
-                    clear_btn = gr.ClearButton([msg, chatbot], value="履歴をクリア")
-            
-            with gr.Column(scale=1):
-                gr.Markdown("### 便利なツール")
-                gr.Markdown("""
-                [欠損数チェッカー](http://0.0.0.0:7861)  
-                上下顎28本の欠損パターン計算
-                """)
-                gr.Markdown("""
-                ### お問い合わせ
-                ご意見・ご要望をお寄せください:  
-                電話: 070-6633-0363  
-                Email: shibuya8020@gmail.com
-                """)
-        
-        # イベント設定
-        submit_btn.click(respond, [msg, chatbot], [msg, chatbot])
-        msg.submit(respond, [msg, chatbot], [msg, chatbot])
+
+with gr.Blocks(css=".gradio-container {background-color:rgb(248, 230, 199)}") as demo:    
+    gr.Markdown("## 自家歯牙移植、歯牙再植、歯科全般について応答します")    
+    gr.Markdown("""
+    ### Chatbotに関するご意見,ご要望は:070-6633-0363  **email**:shibuya8020@gmail.com    
+    """)    
+
+    chatbot = gr.Chatbot(autoscroll=True)
+    msg = gr.Textbox(placeholder="メッセージを入力してください", label="conversation")
+    clear = gr.ClearButton([msg, chatbot])
+    msg.submit(respond, [msg, chatbot], [msg, chatbot])
     
     # チャットボットを起動 (メインアプリ)
-    chatbot_app.launch(
-        server_name="0.0.0.0",
+    demo.launch(
+        server_name="127.0.0.1",
         server_port=7860,  # メインアプリをポート7860で起動
         share=False,
         show_error=True
